@@ -4,6 +4,7 @@ Thumbs.db
 Desktop.ini
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 
@@ -78,4 +79,3 @@ services/operations_service/media/
 
 # Legacy monolith leftovers
 backend/.pytest_cache/
-
