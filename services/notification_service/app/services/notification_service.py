@@ -13,6 +13,10 @@ from app.schemas.notifications import NotificationJobListItem, NotificationJobLi
 EVENT_NOTIFICATION_RULES: dict[str, list[dict[str, str]]] = {
     "driver_offer_sent": [{"recipient_type": "DRIVER", "recipient_key": "driver_id", "channel": "IN_APP", "template": "driver_offer"}],
     "ride_assigned": [{"recipient_type": "RIDER", "recipient_key": "rider_id", "channel": "IN_APP", "template": "rider_assigned"}],
+    "ride_redispatching": [
+        {"recipient_type": "RIDER", "recipient_key": "rider_id", "channel": "IN_APP", "template": "ride_redispatching"},
+        {"recipient_type": "DRIVER", "recipient_key": "previous_driver_id", "channel": "IN_APP", "template": "ride_reassigned"},
+    ],
     "driver_en_route": [{"recipient_type": "RIDER", "recipient_key": "rider_id", "channel": "IN_APP", "template": "driver_en_route"}],
     "driver_arrived": [{"recipient_type": "RIDER", "recipient_key": "rider_id", "channel": "IN_APP", "template": "driver_arrived"}],
     "ride_completed": [

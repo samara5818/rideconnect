@@ -99,6 +99,10 @@ function normalizeRideResponse(data: any, rideId: string, fallback?: Partial<Rid
     can_tip: Boolean(data?.can_tip ?? false),
     rider_rating: data?.rider_rating == null ? null : Number(data.rider_rating),
     rider_comment: typeof data?.rider_comment === "string" ? data.rider_comment : null,
+    dispatch_retry_count:
+      data?.dispatch_retry_count == null
+        ? fallback?.dispatch_retry_count ?? null
+        : Number(data.dispatch_retry_count),
     fare_breakdown: data?.fare_breakdown
       ? {
           base_fare: Number(data.fare_breakdown.base_fare ?? 0),
@@ -243,11 +247,12 @@ export async function requestRide(payload: RideRequest): Promise<RideResponse> {
 export async function getRideStatus(rideId: string): Promise<RideStatusPoll> {
   const data = await request<any>(`/rides/${rideId}/status`).catch(async () => {
     const ride = await request<any>(`/rides/${rideId}`);
-    return {
-      ride_id: ride.id ?? ride.ride_id ?? rideId,
-      status: ride.status,
-      driver: ride.driver
-        ? {
+      return {
+        ride_id: ride.id ?? ride.ride_id ?? rideId,
+        status: ride.status,
+        dispatch_retry_count: ride.dispatch_retry_count ?? null,
+        driver: ride.driver
+          ? {
             driver_id: ride.driver.id,
             full_name: [ride.driver.first_name, ride.driver.last_name].filter(Boolean).join(" "),
             rating_avg: Number(ride.driver.rating_avg ?? 0),
@@ -270,6 +275,7 @@ export async function getRideStatus(rideId: string): Promise<RideStatusPoll> {
   return {
     ride_id: data.ride_id ?? rideId,
     status: normalizeStatus(data.status),
+    dispatch_retry_count: data.dispatch_retry_count == null ? null : Number(data.dispatch_retry_count),
     driver: data.driver
       ? {
           driver_id: data.driver.driver_id ?? data.driver.id,

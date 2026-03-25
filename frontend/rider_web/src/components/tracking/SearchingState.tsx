@@ -14,6 +14,8 @@ export function SearchingState({
   payment,
   onCancel,
   mode = "matching",
+  title,
+  subtitle,
   onRetry,
   onViewActivity,
 }: {
@@ -23,19 +25,28 @@ export function SearchingState({
   fare: number;
   payment: string;
   onCancel: () => void;
-  mode?: "matching" | "no_drivers_found";
+  mode?: "matching" | "redispatching" | "no_drivers_found";
+  title?: string;
+  subtitle?: string;
   onRetry?: () => void;
   onViewActivity?: () => void;
 }) {
   const noDriversFound = mode === "no_drivers_found";
+  const redispatching = mode === "redispatching";
+  const resolvedTitle = title ?? (noDriversFound ? "No drivers available right now" : redispatching ? "Finding another driver" : "Finding your driver");
+  const resolvedSubtitle =
+    subtitle ??
+    (noDriversFound
+      ? "All nearby drivers missed the request. You can try again or check your activity."
+      : redispatching
+        ? "Your previous driver could not reach pickup in time. We are searching for another nearby driver now."
+        : `Looking for nearby ${vehicle} drivers...`);
 
   return (
     <div className={styles.wrapper}>
       {!noDriversFound ? <div className={styles.spinner} /> : <div className={styles.resultIcon}>!</div>}
-      <h1 className={styles.title}>{noDriversFound ? "No drivers available right now" : "Finding your driver"}</h1>
-      <p className={styles.subtitle}>
-        {noDriversFound ? "All nearby drivers missed the request. You can try again or check your activity." : `Looking for nearby ${vehicle} drivers...`}
-      </p>
+      <h1 className={styles.title}>{resolvedTitle}</h1>
+      <p className={styles.subtitle}>{resolvedSubtitle}</p>
       <div className={styles.pill}>
         {!noDriversFound ? (
           <>
@@ -44,7 +55,7 @@ export function SearchingState({
             <span className={styles.dot} />
           </>
         ) : null}
-        <span>{noDriversFound ? "No drivers found" : "Matching"}</span>
+        <span>{noDriversFound ? "No drivers found" : redispatching ? "Re-matching" : "Matching"}</span>
       </div>
       <div className={styles.tripCard}>
         <div className={styles.stop}><span className={styles.pickupDot} />{pickup}</div>

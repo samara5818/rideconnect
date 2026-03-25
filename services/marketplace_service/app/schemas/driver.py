@@ -16,6 +16,9 @@ class DriverProfileResponse(BaseModel):
     is_approved: bool
     rating_avg: Decimal | None = None
     total_rides_completed: int
+    reassigned_ride_id: str | None = None
+    reassignment_notice: str | None = None
+    reassignment_at: object | None = None
 
 
 class DriverProfileUpdateRequest(BaseModel):

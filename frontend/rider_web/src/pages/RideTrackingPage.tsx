@@ -27,6 +27,8 @@ export function RideTrackingPage() {
 
   const status = statusQuery.data?.status ?? "MATCHING";
   const driver = statusQuery.data?.driver ?? detailQuery.data?.driver ?? null;
+  const dispatchRetryCount = statusQuery.data?.dispatch_retry_count ?? detailQuery.data?.dispatch_retry_count ?? 0;
+  const isRedispatching = (status === "REQUESTED" || status === "MATCHING") && dispatchRetryCount > 0;
   const pickupLabel = rideContext.pickup?.display_name ?? detailQuery.data?.pickup_address ?? "Pickup";
   const dropoffLabel = rideContext.dropoff?.display_name ?? detailQuery.data?.dropoff_address ?? "Drop-off";
 
@@ -80,7 +82,7 @@ export function RideTrackingPage() {
           fare={rideContext.selectedFare ?? detailQuery.data?.estimated_fare ?? 0}
           payment={rideContext.paymentMethod ?? detailQuery.data?.payment_method ?? "CASH"}
           onCancel={() => void handleCancel()}
-          mode={status === "NO_DRIVERS_FOUND" ? "no_drivers_found" : "matching"}
+          mode={status === "NO_DRIVERS_FOUND" ? "no_drivers_found" : isRedispatching ? "redispatching" : "matching"}
           onRetry={handleRetrySearch}
           onViewActivity={handleViewActivity}
         />

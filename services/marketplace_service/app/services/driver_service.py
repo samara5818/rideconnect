@@ -5,7 +5,7 @@ from math import ceil
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import CancelledBy, DriverStatus, RideStatus
@@ -77,6 +77,21 @@ class DriverService:
         driver = await self.ensure_driver(db, user_id)
         snapshot = await driver_presence_service.get_snapshot([driver.id])
         presence = snapshot.get(driver.id)
+        reassignment = (
+            await db.execute(
+                text(
+                    """
+                    SELECT ride_id, created_at
+                    FROM marketplace_schema.ride_events
+                    WHERE event_type = 'AUTO_REDISPATCH_REQUESTED'
+                      AND event_payload->>'previous_driver_id' = :driver_id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """
+                ),
+                {"driver_id": driver.id},
+            )
+        ).mappings().first()
         return DriverProfileResponse(
             id=driver.id,
             first_name=driver.first_name,
@@ -88,6 +103,13 @@ class DriverService:
             is_approved=driver.is_approved,
             rating_avg=driver.rating_avg,
             total_rides_completed=driver.total_rides_completed,
+            reassigned_ride_id=str(reassignment["ride_id"]) if reassignment else None,
+            reassignment_notice=(
+                "A ride you accepted was reassigned to another driver while you were offline."
+                if reassignment
+                else None
+            ),
+            reassignment_at=reassignment["created_at"] if reassignment else None,
         )
 
     async def update_profile(self, db: AsyncSession, user_id: str, payload: DriverProfileUpdateRequest) -> DriverProfileResponse:
