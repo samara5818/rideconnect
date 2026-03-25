@@ -490,3 +490,58 @@ async def test_ride_completion_receipt_and_rating_flow(client, db_session, rider
     assert refreshed_ride["feedback_status"] == "SUBMITTED"
     assert refreshed_ride["completion_acknowledged"] is True
     assert refreshed_ride["final_fare_amount"] is not None
+
+
+async def test_driver_going_offline_cancels_unfinished_active_ride(client, db_session, rider_auth, driver_auth, marketplace_objects):
+    ride_service = marketplace_objects["ride_service"]
+    driver_service = marketplace_objects["driver_service"]
+    Ride = marketplace_objects["Ride"]
+    rider = await ride_service.ensure_rider_for_write(db_session, rider_auth["user_id"])
+    driver = await driver_service.ensure_driver(db_session, driver_auth["user_id"])
+    driver.is_approved = True
+    driver.is_online = True
+    driver.is_available = True
+    driver.status = DriverStatus.ACTIVE
+    driver.region_id = REGION_ID
+    ride = Ride(
+        rider_id=rider.id,
+        driver_id=driver.id,
+        region_id=REGION_ID,
+        status=RideStatus.DRIVER_ASSIGNED,
+        ride_type=RideType.ON_DEMAND,
+        pickup_address="A",
+        pickup_latitude=1,
+        pickup_longitude=1,
+        dropoff_address="B",
+        dropoff_latitude=2,
+        dropoff_longitude=2,
+        payment_method="CARD",
+        requested_at=datetime.now(timezone.utc) - timedelta(minutes=10),
+        assigned_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+    )
+    db_session.add_all([driver, ride])
+    await db_session.commit()
+
+    offline_response = await client.post(
+        "/api/v1/drivers/me/availability",
+        headers={"Authorization": driver_auth["Authorization"]},
+        json={"is_online": False, "is_available": False},
+    )
+    assert offline_response.status_code == 200
+
+    refreshed_ride = (
+        await db_session.execute(
+            text(
+                "SELECT status, cancelled_by, cancel_reason, completed_at "
+                "FROM marketplace_schema.rides WHERE id = :ride_id"
+            ),
+            {"ride_id": ride.id},
+        )
+    ).mappings().one()
+    assert refreshed_ride["status"] == "CANCELLED"
+    assert refreshed_ride["cancelled_by"] == "DRIVER"
+    assert refreshed_ride["completed_at"] is None
+    assert "offline" in refreshed_ride["cancel_reason"].lower()
+
+    active_rides = await ride_service.list_active_for_admin(db_session)
+    assert all(item.ride_id != ride.id for item in active_rides)

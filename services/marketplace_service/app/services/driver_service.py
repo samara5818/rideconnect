@@ -8,8 +8,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.enums import DriverStatus, RideStatus
-from app.models import Driver, DriverAvailabilityLog, Ride, Vehicle
+from app.core.enums import CancelledBy, DriverStatus, RideStatus
+from app.models import Driver, DriverAvailabilityLog, Ride, RideEvent, Vehicle
 from app.schemas.driver import (
     DriverAvailabilityRequest,
     DriverAvailabilityResponse,
@@ -30,6 +30,42 @@ def _uuid(value: str) -> UUID:
 
 
 class DriverService:
+    async def _cancel_unfinished_rides_for_driver(self, db: AsyncSession, driver_id: str, reason: str) -> None:
+        rides = (
+            await db.execute(
+                select(Ride).where(
+                    and_(
+                        Ride.driver_id == driver_id,
+                        Ride.status.in_(
+                            [
+                                RideStatus.DRIVER_ASSIGNED,
+                                RideStatus.DRIVER_EN_ROUTE,
+                                RideStatus.DRIVER_ARRIVED,
+                                RideStatus.RIDE_STARTED,
+                            ]
+                        ),
+                    )
+                )
+            )
+        ).scalars().all()
+        if not rides:
+            return
+
+        now = datetime.now(timezone.utc)
+        for ride in rides:
+            ride.status = RideStatus.CANCELLED
+            ride.cancelled_at = now
+            ride.cancelled_by = CancelledBy.DRIVER
+            ride.cancel_reason = reason
+            db.add(ride)
+            db.add(
+                RideEvent(
+                    ride_id=ride.id,
+                    event_type="RIDE_CANCELLED",
+                    event_payload={"cancel_reason": reason, "cancelled_by": CancelledBy.DRIVER.value},
+                )
+            )
+
     async def ensure_driver(self, db: AsyncSession, user_id: str) -> Driver:
         driver = await db.scalar(select(Driver).where(Driver.user_id == _uuid(user_id)))
         if driver:
@@ -93,6 +129,12 @@ class DriverService:
         driver.is_available = payload.is_available and payload.is_online and driver.is_approved
         if driver.is_approved and driver.status != DriverStatus.SUSPENDED:
             driver.status = DriverStatus.ACTIVE
+        if not payload.is_online:
+            await self._cancel_unfinished_rides_for_driver(
+                db,
+                driver.id,
+                "Driver went offline before completing the ride.",
+            )
         db.add(driver)
         db.add(
             DriverAvailabilityLog(

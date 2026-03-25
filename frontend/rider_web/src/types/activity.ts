@@ -1,4 +1,12 @@
-export type RideHistoryStatus = "RIDE_COMPLETED" | "CANCELLED" | "RIDE_STARTED";
+export type RideHistoryStatus =
+  | "MATCHING"
+  | "NO_DRIVERS_FOUND"
+  | "DRIVER_ASSIGNED"
+  | "DRIVER_EN_ROUTE"
+  | "DRIVER_ARRIVED"
+  | "RIDE_STARTED"
+  | "RIDE_COMPLETED"
+  | "CANCELLED";
 
 export interface RiderRideHistory {
   ride_id: string;

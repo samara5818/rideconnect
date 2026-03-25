@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Driver, DriverAvailabilityLog
+from app.core.enums import CancelledBy, RideStatus
+from app.models import Driver, DriverAvailabilityLog, Ride, RideEvent
 from shared.python.events.streams import DRIVER_PRESENCE_CHANNEL, DRIVER_PRESENCE_INDEX_KEY, get_redis_client
 
 
@@ -17,6 +18,42 @@ def _presence_key(driver_id: str) -> str:
 
 
 class DriverPresenceService:
+    async def _cancel_unfinished_rides_for_driver(self, db: AsyncSession, driver_id: str, reason: str) -> None:
+        rides = (
+            await db.execute(
+                select(Ride).where(
+                    and_(
+                        Ride.driver_id == driver_id,
+                        Ride.status.in_(
+                            [
+                                RideStatus.DRIVER_ASSIGNED,
+                                RideStatus.DRIVER_EN_ROUTE,
+                                RideStatus.DRIVER_ARRIVED,
+                                RideStatus.RIDE_STARTED,
+                            ]
+                        ),
+                    )
+                )
+            )
+        ).scalars().all()
+        if not rides:
+            return
+
+        now = datetime.now(timezone.utc)
+        for ride in rides:
+            ride.status = RideStatus.CANCELLED
+            ride.cancelled_at = now
+            ride.cancelled_by = CancelledBy.DRIVER
+            ride.cancel_reason = reason
+            db.add(ride)
+            db.add(
+                RideEvent(
+                    ride_id=ride.id,
+                    event_type="RIDE_CANCELLED",
+                    event_payload={"cancel_reason": reason, "cancelled_by": CancelledBy.DRIVER.value},
+                )
+            )
+
     async def mark_online(self, driver_id: str, is_available: bool) -> None:
         redis = get_redis_client()
         expires_at = self._expires_at()
@@ -108,6 +145,11 @@ class DriverPresenceService:
         for driver in rows:
             driver.is_online = False
             driver.is_available = False
+            await self._cancel_unfinished_rides_for_driver(
+                db,
+                driver.id,
+                "Driver presence expired before the ride was completed.",
+            )
             db.add(driver)
             db.add(
                 DriverAvailabilityLog(

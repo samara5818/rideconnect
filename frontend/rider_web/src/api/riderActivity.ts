@@ -86,11 +86,20 @@ function fullName(first?: string | null, last?: string | null, fallback = "Drive
 }
 
 function normalizeStatus(value: unknown): RiderRideHistory["status"] {
-  const normalized = String(value ?? "RIDE_COMPLETED").toUpperCase();
-  if (normalized === "CANCELLED" || normalized === "RIDE_STARTED") {
+  const normalized = String(value ?? "MATCHING").toUpperCase();
+  if (
+    normalized === "MATCHING" ||
+    normalized === "NO_DRIVERS_FOUND" ||
+    normalized === "DRIVER_ASSIGNED" ||
+    normalized === "DRIVER_EN_ROUTE" ||
+    normalized === "DRIVER_ARRIVED" ||
+    normalized === "RIDE_STARTED" ||
+    normalized === "RIDE_COMPLETED" ||
+    normalized === "CANCELLED"
+  ) {
     return normalized;
   }
-  return "RIDE_COMPLETED";
+  return "MATCHING";
 }
 
 function toNumber(value: unknown): number | null {

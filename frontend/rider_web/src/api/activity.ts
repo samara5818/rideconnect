@@ -76,6 +76,21 @@ function buildPastActivityItems(rides: RiderRideHistory[]): RiderActivityItem[] 
       ];
     }
 
+    if (ride.status !== "RIDE_COMPLETED") {
+      return [
+        {
+          id: `ride-active-${ride.ride_id}`,
+          type: ride.status === "DRIVER_ARRIVED" ? "DRIVER_ARRIVED" : "DRIVER_ASSIGNED",
+          status: ride.status,
+          title: currentRideTitle(ride.status),
+          timestamp: completedAt,
+          event_note: "This ride has not been completed yet.",
+          cta_label: "View details",
+          ...base,
+        },
+      ];
+    }
+
     return [
       {
         id: `ride-completed-${ride.ride_id}`,
