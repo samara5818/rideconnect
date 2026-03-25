@@ -13,6 +13,8 @@ RIDE_EVENTS_STREAM = "stream:ride_events"
 DRIVER_EVENTS_STREAM = "stream:driver_events"
 ONBOARDING_EVENTS_STREAM = "stream:onboarding_events"
 NOTIFICATION_JOBS_STREAM = "stream:notification_jobs"
+DRIVER_PRESENCE_CHANNEL = "channel:driver_presence"
+DRIVER_PRESENCE_INDEX_KEY = "presence:drivers:index"
 
 
 @lru_cache

@@ -25,6 +25,104 @@ RIDER_PASSWORD = "RiderPass123!"
 DRIVER_EMAIL = "driver@rideconnect.com"
 DRIVER_PHONE = "+15550000002"
 DRIVER_PASSWORD = "DriverPass123!"
+SEEDED_DRIVERS = [
+    {
+        "email": DRIVER_EMAIL,
+        "phone": DRIVER_PHONE,
+        "password": DRIVER_PASSWORD,
+        "first_name": "Test",
+        "last_name": "Driver",
+        "plate_number": "TEST-DRIVER-1",
+        "make": "Toyota",
+        "model": "Camry",
+        "year": 2022,
+        "color": "Silver",
+        "vehicle_type": "ECONOMY",
+        "seat_capacity": 4,
+        "fuel_type": "Hybrid",
+        "mileage_city": Decimal("42.00"),
+        "mileage_highway": Decimal("48.00"),
+        "rating_avg": Decimal("4.95"),
+        "total_rides_completed": 24,
+        "latitude": Decimal("37.7751000"),
+        "longitude": Decimal("-122.4183000"),
+        "heading": Decimal("90.00"),
+        "speed_mph": Decimal("18.50"),
+        "accuracy_meters": Decimal("4.00"),
+    },
+    {
+        "email": "driver2@rideconnect.com",
+        "phone": "+15550000003",
+        "password": DRIVER_PASSWORD,
+        "first_name": "Alex",
+        "last_name": "Lane",
+        "plate_number": "TEST-DRIVER-2",
+        "make": "Honda",
+        "model": "Accord",
+        "year": 2021,
+        "color": "Black",
+        "vehicle_type": "ECONOMY",
+        "seat_capacity": 4,
+        "fuel_type": "Gasoline",
+        "mileage_city": Decimal("30.00"),
+        "mileage_highway": Decimal("38.00"),
+        "rating_avg": Decimal("4.91"),
+        "total_rides_completed": 41,
+        "latitude": Decimal("37.7768000"),
+        "longitude": Decimal("-122.4161000"),
+        "heading": Decimal("180.00"),
+        "speed_mph": Decimal("12.00"),
+        "accuracy_meters": Decimal("5.00"),
+    },
+    {
+        "email": "driver3@rideconnect.com",
+        "phone": "+15550000004",
+        "password": DRIVER_PASSWORD,
+        "first_name": "Maya",
+        "last_name": "Brooks",
+        "plate_number": "TEST-DRIVER-3",
+        "make": "Hyundai",
+        "model": "Elantra",
+        "year": 2023,
+        "color": "Blue",
+        "vehicle_type": "ECONOMY",
+        "seat_capacity": 4,
+        "fuel_type": "Hybrid",
+        "mileage_city": Decimal("37.00"),
+        "mileage_highway": Decimal("44.00"),
+        "rating_avg": Decimal("4.88"),
+        "total_rides_completed": 17,
+        "latitude": Decimal("37.7734000"),
+        "longitude": Decimal("-122.4205000"),
+        "heading": Decimal("45.00"),
+        "speed_mph": Decimal("9.50"),
+        "accuracy_meters": Decimal("3.50"),
+    },
+    {
+        "email": "driver4@rideconnect.com",
+        "phone": "+15550000005",
+        "password": DRIVER_PASSWORD,
+        "first_name": "Jordan",
+        "last_name": "Reed",
+        "plate_number": "TEST-DRIVER-4",
+        "make": "Nissan",
+        "model": "Altima",
+        "year": 2020,
+        "color": "White",
+        "vehicle_type": "ECONOMY",
+        "seat_capacity": 4,
+        "fuel_type": "Gasoline",
+        "mileage_city": Decimal("28.00"),
+        "mileage_highway": Decimal("39.00"),
+        "rating_avg": Decimal("4.84"),
+        "total_rides_completed": 58,
+        "latitude": Decimal("37.7784000"),
+        "longitude": Decimal("-122.4147000"),
+        "heading": Decimal("270.00"),
+        "speed_mph": Decimal("15.00"),
+        "accuracy_meters": Decimal("6.00"),
+    },
+]
 
 
 def hash_password(password: str) -> str:
@@ -136,7 +234,16 @@ async def upsert_rider_profile(conn, *, user_id: str, first_name: str, last_name
     )
 
 
-async def upsert_driver_profile(conn, *, user_id: str, first_name: str, last_name: str | None, phone_number: str) -> str:
+async def upsert_driver_profile(
+    conn,
+    *,
+    user_id: str,
+    first_name: str,
+    last_name: str | None,
+    phone_number: str,
+    rating_avg: Decimal,
+    total_rides_completed: int,
+) -> str:
     existing = await conn.execute(
         text("SELECT id FROM marketplace_schema.drivers WHERE user_id = :user_id"),
         {"user_id": user_id},
@@ -152,8 +259,8 @@ async def upsert_driver_profile(conn, *, user_id: str, first_name: str, last_nam
                     last_name = :last_name,
                     phone_number = :phone_number,
                     status = 'ACTIVE',
-                    is_online = true,
-                    is_available = true,
+                    is_online = false,
+                    is_available = false,
                     is_approved = true,
                     rating_avg = :rating_avg,
                     total_rides_completed = :total_rides_completed,
@@ -166,8 +273,8 @@ async def upsert_driver_profile(conn, *, user_id: str, first_name: str, last_nam
                 "first_name": first_name,
                 "last_name": last_name,
                 "phone_number": phone_number,
-                "rating_avg": Decimal("4.95"),
-                "total_rides_completed": 24,
+                "rating_avg": rating_avg,
+                "total_rides_completed": total_rides_completed,
                 "updated_at": now,
             },
         )
@@ -182,7 +289,7 @@ async def upsert_driver_profile(conn, *, user_id: str, first_name: str, last_nam
                 is_online, is_available, is_approved, rating_avg, total_rides_completed, created_at, updated_at
             ) VALUES (
                 :id, :user_id, :first_name, :last_name, :phone_number, NULL, 'ACTIVE',
-                true, true, true, :rating_avg, :total_rides_completed, :created_at, :updated_at
+                false, false, true, :rating_avg, :total_rides_completed, :created_at, :updated_at
             )
             """
         ),
@@ -192,8 +299,8 @@ async def upsert_driver_profile(conn, *, user_id: str, first_name: str, last_nam
             "first_name": first_name,
             "last_name": last_name,
             "phone_number": phone_number,
-            "rating_avg": Decimal("4.95"),
-            "total_rides_completed": 24,
+            "rating_avg": rating_avg,
+            "total_rides_completed": total_rides_completed,
             "created_at": now,
             "updated_at": now,
         },
@@ -201,7 +308,21 @@ async def upsert_driver_profile(conn, *, user_id: str, first_name: str, last_nam
     return driver_id
 
 
-async def upsert_vehicle(conn, *, driver_id: str) -> None:
+async def upsert_vehicle(
+    conn,
+    *,
+    driver_id: str,
+    plate_number: str,
+    make: str,
+    model: str,
+    year: int,
+    color: str,
+    vehicle_type: str,
+    seat_capacity: int,
+    fuel_type: str,
+    mileage_city: Decimal,
+    mileage_highway: Decimal,
+) -> None:
     now = datetime.now(timezone.utc)
     await conn.execute(
         text(
@@ -227,7 +348,7 @@ async def upsert_vehicle(conn, *, driver_id: str) -> None:
         ),
         {
             "driver_id": driver_id,
-            "plate_number": "TEST-DRIVER-1",
+            "plate_number": plate_number,
         },
     )
     vehicle_id = existing.scalar()
@@ -250,13 +371,13 @@ async def upsert_vehicle(conn, *, driver_id: str) -> None:
             ),
             {
                 "id": vehicle_id,
-                "make": "Toyota",
-                "model": "Camry",
-                "year": 2022,
-                "color": "Silver",
-                "vehicle_type": "ECONOMY",
-                "seat_capacity": 4,
-                "fuel_type": "Hybrid",
+                "make": make,
+                "model": model,
+                "year": year,
+                "color": color,
+                "vehicle_type": vehicle_type,
+                "seat_capacity": seat_capacity,
+                "fuel_type": fuel_type,
                 "updated_at": now,
             },
         )
@@ -277,18 +398,56 @@ async def upsert_vehicle(conn, *, driver_id: str) -> None:
         {
             "id": str(uuid4()),
             "driver_id": driver_id,
-            "make": "Toyota",
-            "model": "Camry",
-            "year": 2022,
-            "color": "Silver",
-            "plate_number": "TEST-DRIVER-1",
-            "vehicle_type": "ECONOMY",
-            "seat_capacity": 4,
-            "fuel_type": "Hybrid",
-            "mileage_city": Decimal("42.00"),
-            "mileage_highway": Decimal("48.00"),
+            "make": make,
+            "model": model,
+            "year": year,
+            "color": color,
+            "plate_number": plate_number,
+            "vehicle_type": vehicle_type,
+            "seat_capacity": seat_capacity,
+            "fuel_type": fuel_type,
+            "mileage_city": mileage_city,
+            "mileage_highway": mileage_highway,
             "created_at": now,
             "updated_at": now,
+        },
+    )
+
+
+async def upsert_driver_tracking_ping(
+    conn,
+    *,
+    driver_id: str,
+    latitude: Decimal,
+    longitude: Decimal,
+    heading: Decimal,
+    speed_mph: Decimal,
+    accuracy_meters: Decimal,
+) -> None:
+    await conn.execute(
+        text("DELETE FROM marketplace_schema.tracking_pings WHERE ride_id IS NULL AND driver_id = :driver_id"),
+        {"driver_id": driver_id},
+    )
+    now = datetime.now(timezone.utc)
+    await conn.execute(
+        text(
+            """
+            INSERT INTO marketplace_schema.tracking_pings (
+                id, ride_id, driver_id, latitude, longitude, heading, speed_mph, accuracy_meters, recorded_at
+            ) VALUES (
+                :id, NULL, :driver_id, :latitude, :longitude, :heading, :speed_mph, :accuracy_meters, :recorded_at
+            )
+            """
+        ),
+        {
+            "id": str(uuid4()),
+            "driver_id": driver_id,
+            "latitude": latitude,
+            "longitude": longitude,
+            "heading": heading,
+            "speed_mph": speed_mph,
+            "accuracy_meters": accuracy_meters,
+            "recorded_at": now,
         },
     )
 
@@ -312,13 +471,16 @@ async def main() -> None:
             password=RIDER_PASSWORD,
             role="RIDER",
         )
-        driver_user_id = await upsert_auth_user(
-            auth_conn,
-            email=DRIVER_EMAIL,
-            phone_number=DRIVER_PHONE,
-            password=DRIVER_PASSWORD,
-            role="DRIVER",
-        )
+        driver_users: list[tuple[dict, str]] = []
+        for driver in SEEDED_DRIVERS:
+            driver_user_id = await upsert_auth_user(
+                auth_conn,
+                email=driver["email"],
+                phone_number=driver["phone"],
+                password=driver["password"],
+                role="DRIVER",
+            )
+            driver_users.append((driver, driver_user_id))
 
     async with marketplace_engine.begin() as marketplace_conn:
         await upsert_rider_profile(
@@ -327,14 +489,39 @@ async def main() -> None:
             first_name="Test",
             last_name="Rider",
         )
-        driver_id = await upsert_driver_profile(
-            marketplace_conn,
-            user_id=driver_user_id,
-            first_name="Test",
-            last_name="Driver",
-            phone_number=DRIVER_PHONE,
-        )
-        await upsert_vehicle(marketplace_conn, driver_id=driver_id)
+        for driver, driver_user_id in driver_users:
+            driver_id = await upsert_driver_profile(
+                marketplace_conn,
+                user_id=driver_user_id,
+                first_name=driver["first_name"],
+                last_name=driver["last_name"],
+                phone_number=driver["phone"],
+                rating_avg=driver["rating_avg"],
+                total_rides_completed=driver["total_rides_completed"],
+            )
+            await upsert_vehicle(
+                marketplace_conn,
+                driver_id=driver_id,
+                plate_number=driver["plate_number"],
+                make=driver["make"],
+                model=driver["model"],
+                year=driver["year"],
+                color=driver["color"],
+                vehicle_type=driver["vehicle_type"],
+                seat_capacity=driver["seat_capacity"],
+                fuel_type=driver["fuel_type"],
+                mileage_city=driver["mileage_city"],
+                mileage_highway=driver["mileage_highway"],
+            )
+            await upsert_driver_tracking_ping(
+                marketplace_conn,
+                driver_id=driver_id,
+                latitude=driver["latitude"],
+                longitude=driver["longitude"],
+                heading=driver["heading"],
+                speed_mph=driver["speed_mph"],
+                accuracy_meters=driver["accuracy_meters"],
+            )
 
     await auth_engine.dispose()
     await marketplace_engine.dispose()
@@ -342,7 +529,8 @@ async def main() -> None:
     print("Seeded test accounts:")
     print(f"ADMIN  {ADMIN_EMAIL} / {ADMIN_PASSWORD}")
     print(f"RIDER  {RIDER_EMAIL} / {RIDER_PASSWORD}")
-    print(f"DRIVER {DRIVER_EMAIL} / {DRIVER_PASSWORD}")
+    for driver in SEEDED_DRIVERS:
+        print(f"DRIVER {driver['email']} / {driver['password']}")
 
 
 if __name__ == "__main__":

@@ -7,7 +7,9 @@ import {
   getStoredToken,
   getStoredUser,
   loginDriver,
+  markCurrentDriverOffline,
   registerDriver,
+  sendDriverPresenceHeartbeat,
 } from "../api/auth";
 import type {
   AuthSessionResponse,
@@ -54,6 +56,19 @@ export function DriverSessionProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    void sendDriverPresenceHeartbeat();
+    const heartbeatId = window.setInterval(() => {
+      void sendDriverPresenceHeartbeat();
+    }, 15_000);
+
+    return () => window.clearInterval(heartbeatId);
+  }, [token]);
+
   function applySession(session: AuthSessionResponse) {
     setToken(session.accessToken);
     setUser(session.user);
@@ -74,6 +89,7 @@ export function DriverSessionProvider({ children }: { children: ReactNode }) {
   }
 
   function signOut() {
+    void markCurrentDriverOffline();
     clearSession();
     setToken(null);
     setUser(null);

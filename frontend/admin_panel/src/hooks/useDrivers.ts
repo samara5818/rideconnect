@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '../api/client';
 import type { Driver, PaginatedResponse } from '../types/admin';
 
+const DRIVERS_RECONCILE_MS = 60_000;
+
 interface DriverFilters {
   region_id?: string;
   status?: string;
@@ -25,7 +27,8 @@ export function useDriversList(filters: DriverFilters = {}) {
       if (Array.isArray(d)) return { items: d, pagination: { page: 1, page_size: d.length, total_items: d.length, total_pages: 1 } };
       return d as PaginatedResponse<Driver>;
     }),
-    refetchInterval: 30_000,
+    refetchInterval: DRIVERS_RECONCILE_MS,
+    refetchOnWindowFocus: true,
   });
 }
 

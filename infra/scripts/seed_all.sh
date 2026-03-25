@@ -1,5 +1,5 @@
-#!/usr/bin/env sh
-set -eu
+#!/usr/bin/env bash 
+set -euo pipefail
 
 python /app/infra/scripts/seed_region.py
 python /app/infra/scripts/seed_admin.py

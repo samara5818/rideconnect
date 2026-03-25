@@ -39,6 +39,14 @@ async def update_driver_availability(
     return SuccessResponse(message="Driver availability updated", data=await driver_service.update_availability(db, user.user_id, payload))
 
 
+@router.post("/api/v1/drivers/me/presence/heartbeat", response_model=SuccessResponse)
+async def heartbeat_driver_presence(
+    db: AsyncSession = Depends(get_db_session),
+    user=Depends(require_role(UserRole.DRIVER)),
+):
+    return SuccessResponse(message="Driver presence heartbeat received", data=await driver_service.heartbeat_presence(db, user.user_id))
+
+
 @router.get("/api/v1/drivers/me/vehicle", response_model=SuccessResponse)
 async def get_driver_vehicle(
     db: AsyncSession = Depends(get_db_session),

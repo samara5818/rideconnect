@@ -22,6 +22,7 @@ from app.schemas.driver import (
 )
 from app.schemas.ride import InternalAdminDriverItem, InternalAdminDriversResponse, PaginationResponse
 from app.services.common import to_decimal
+from app.services.driver_presence_service import driver_presence_service
 
 
 def _uuid(value: str) -> UUID:
@@ -36,8 +37,22 @@ class DriverService:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver profile not found")
 
     async def get_profile(self, db: AsyncSession, user_id: str) -> DriverProfileResponse:
+        await driver_presence_service.reconcile_expired_presence(db)
         driver = await self.ensure_driver(db, user_id)
-        return DriverProfileResponse.model_validate(driver, from_attributes=True)
+        snapshot = await driver_presence_service.get_snapshot([driver.id])
+        presence = snapshot.get(driver.id)
+        return DriverProfileResponse(
+            id=driver.id,
+            first_name=driver.first_name,
+            last_name=driver.last_name,
+            phone_number=driver.phone_number,
+            status=driver.status.value,
+            is_online=bool(presence.get("is_online")) if presence else False,
+            is_available=bool(presence.get("is_available")) if presence else False,
+            is_approved=driver.is_approved,
+            rating_avg=driver.rating_avg,
+            total_rides_completed=driver.total_rides_completed,
+        )
 
     async def update_profile(self, db: AsyncSession, user_id: str, payload: DriverProfileUpdateRequest) -> DriverProfileResponse:
         driver = await self.ensure_driver(db, user_id)
@@ -88,7 +103,20 @@ class DriverService:
             )
         )
         await db.commit()
+        if driver.is_online:
+            await driver_presence_service.mark_online(driver.id, driver.is_available)
+        else:
+            await driver_presence_service.mark_offline(driver.id)
         return DriverAvailabilityResponse(driver_id=driver.id, is_online=driver.is_online, is_available=driver.is_available)
+
+    async def heartbeat_presence(self, db: AsyncSession, user_id: str) -> DriverAvailabilityResponse:
+        await driver_presence_service.reconcile_expired_presence(db)
+        driver = await self.ensure_driver(db, user_id)
+        if not driver.is_online or not driver.is_approved or driver.status == DriverStatus.SUSPENDED:
+            return DriverAvailabilityResponse(driver_id=driver.id, is_online=False, is_available=False)
+
+        await driver_presence_service.mark_online(driver.id, driver.is_available)
+        return DriverAvailabilityResponse(driver_id=driver.id, is_online=True, is_available=driver.is_available)
 
     async def get_vehicle(self, db: AsyncSession, user_id: str) -> DriverVehicleResponse:
         driver = await self.ensure_driver(db, user_id)
@@ -198,9 +226,11 @@ class DriverService:
         )
 
     async def list_for_admin(self, db: AsyncSession, page: int, page_size: int) -> InternalAdminDriversResponse:
+        await driver_presence_service.reconcile_expired_presence(db)
         rows = (await db.execute(
             select(Driver).where(Driver.is_approved.is_(True)).order_by(Driver.created_at.desc())
         )).scalars().all()
+        snapshot = await driver_presence_service.get_snapshot([row.id for row in rows])
         total_items = len(rows)
         items = [
             InternalAdminDriverItem(
@@ -208,8 +238,8 @@ class DriverService:
                 first_name=row.first_name,
                 last_name=row.last_name,
                 status=row.status.value,
-                is_online=row.is_online,
-                is_available=row.is_available,
+                is_online=bool(snapshot.get(row.id, {}).get("is_online", False)),
+                is_available=bool(snapshot.get(row.id, {}).get("is_available", False)),
                 is_approved=row.is_approved,
                 total_rides_completed=row.total_rides_completed,
             )
@@ -326,6 +356,7 @@ class DriverService:
         db.add(driver)
         db.add(DriverAvailabilityLog(driver_id=driver.id, is_online=False, is_available=False, reason=reason))
         await db.commit()
+        await driver_presence_service.mark_offline(driver.id)
         return {"driver_id": driver.id, "status": driver.status.value}
 
 

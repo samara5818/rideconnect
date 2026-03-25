@@ -83,6 +83,30 @@ function persistSession(session: AuthSessionResponse): AuthSessionResponse {
   return session;
 }
 
+async function setDriverPresence(isOnline: boolean): Promise<void> {
+  try {
+    await apiRequest<unknown>("/drivers/me/availability", {
+      method: "POST",
+      body: {
+        is_online: isOnline,
+        is_available: isOnline,
+      },
+    });
+  } catch {
+    // Keep auth flows usable even if presence sync fails.
+  }
+}
+
+export async function sendDriverPresenceHeartbeat(): Promise<void> {
+  try {
+    await apiRequest<unknown>("/drivers/me/presence/heartbeat", {
+      method: "POST",
+    });
+  } catch {
+    // Heartbeat expiry is recoverable; the next availability change or login can restore presence.
+  }
+}
+
 export async function registerDriver(
   payload: DriverRegistrationPayload,
 ): Promise<AuthSessionResponse | { success: true }> {
@@ -115,7 +139,9 @@ export async function loginDriver(payload: DriverLoginPayload): Promise<AuthSess
     },
   });
 
-  return persistSession(normalizeSession(unwrapPayload(response)));
+  const session = persistSession(normalizeSession(unwrapPayload(response)));
+  await setDriverPresence(true);
+  return session;
 }
 
 export async function getCurrentDriverProfile(): Promise<AuthUser> {
@@ -179,6 +205,10 @@ export function clearSession(): void {
 
 export function getStoredToken(): string | null {
   return getAccessToken();
+}
+
+export function markCurrentDriverOffline(): Promise<void> {
+  return setDriverPresence(false);
 }
 
 export { getStoredUser };

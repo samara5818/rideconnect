@@ -20,4 +20,4 @@ COPY infra /app/infra
 
 WORKDIR /app
 
-CMD ["sh", "/app/infra/scripts/bootstrap.sh"]
+CMD ["bash", "/app/infra/scripts/bootstrap.sh"]

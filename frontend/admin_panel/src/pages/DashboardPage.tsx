@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useDashboardSummary } from '../hooks/useDashboard';
 import { useActiveRides } from '../hooks/useRides';
 import { useDriversList } from '../hooks/useDrivers';
+import { useDashboardPresenceStream } from '../hooks/useDashboardPresenceStream';
 import { DataTable } from '../components/DataTable';
 import { StatusBadge } from '../components/StatusBadge';
 import { Avatar } from '../components/Avatar';
@@ -20,6 +21,7 @@ const STAT_CARDS = [
 ];
 
 export function DashboardPage() {
+  useDashboardPresenceStream(true);
   const { data: summary, isLoading: summaryLoading } = useDashboardSummary();
   const { data: rides, isLoading: ridesLoading } = useActiveRides();
   const { data: driversResponse, isLoading: driversLoading } = useDriversList({ page_size: 100 });

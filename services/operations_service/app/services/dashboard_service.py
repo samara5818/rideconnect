@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from math import ceil
 
 import httpx
@@ -11,9 +12,19 @@ from app.models import DriverOnboardingProfile
 from app.schemas.dashboard import DashboardSummaryResponse
 from app.services.region_service import region_service
 from app.core.enums import OnboardingStatus
+from shared.python.events.streams import DRIVER_PRESENCE_INDEX_KEY, get_redis_client
 
 
 class DashboardService:
+    async def count_online_drivers(self) -> int:
+        redis = get_redis_client()
+        expired_driver_ids = await redis.zrangebyscore(DRIVER_PRESENCE_INDEX_KEY, min=0, max=datetime.now().timestamp())
+        for driver_id in expired_driver_ids:
+            if await redis.exists(f"presence:driver:{driver_id}"):
+                continue
+            await redis.zrem(DRIVER_PRESENCE_INDEX_KEY, driver_id)
+        return int(await redis.zcard(DRIVER_PRESENCE_INDEX_KEY))
+
     async def get_summary(self, db: AsyncSession, auth_header: str | None) -> DashboardSummaryResponse:
         active_rides = 0
         online_drivers = 0
@@ -29,14 +40,8 @@ class DashboardService:
                 active_rides = 0
 
             try:
-                drivers_response = await client.get(
-                    f"{settings.marketplace_service_url}/api/v1/internal/admin/drivers",
-                    headers={"Authorization": auth_header} if auth_header else {},
-                )
-                if drivers_response.is_success:
-                    payload = drivers_response.json().get("data", {})
-                    online_drivers = len([item for item in payload.get("items", []) if item.get("is_online")])
-            except httpx.HTTPError:
+                online_drivers = await self.count_online_drivers()
+            except Exception:
                 online_drivers = 0
 
         pending_reviews = len(
