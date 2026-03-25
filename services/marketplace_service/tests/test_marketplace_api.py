@@ -547,6 +547,98 @@ async def test_driver_going_offline_cancels_unfinished_active_ride(client, db_se
     assert all(item.ride_id != ride.id for item in active_rides)
 
 
+async def test_driver_cancel_after_accepting_ride_reassigns_to_another_driver(client, db_session, rider_auth, driver_auth, marketplace_objects):
+    ride_service = marketplace_objects["ride_service"]
+    driver_service = marketplace_objects["driver_service"]
+    Ride = marketplace_objects["Ride"]
+    Driver = marketplace_objects["Driver"]
+    DriverOffer = marketplace_objects["DriverOffer"]
+    rider = await ride_service.ensure_rider_for_write(db_session, rider_auth["user_id"])
+    first_driver = await driver_service.ensure_driver(db_session, driver_auth["user_id"])
+    first_driver.is_approved = True
+    first_driver.is_online = True
+    first_driver.is_available = False
+    first_driver.status = DriverStatus.ACTIVE
+    first_driver.region_id = REGION_ID
+
+    await db_session.execute(
+        text(
+            """
+            INSERT INTO auth_schema.users (id, email, password_hash, role, is_active, is_verified, created_at, updated_at)
+            VALUES (:id, :email, 'x', 'DRIVER', true, true, now(), now())
+            """
+        ),
+        {"id": "00000000-0000-0000-0000-000000000302", "email": "candidate-driver-cancel@test.local"},
+    )
+    second_driver = Driver(
+        user_id="00000000-0000-0000-0000-000000000302",
+        first_name="Next",
+        phone_number="+1",
+        region_id=REGION_ID,
+        status=DriverStatus.ACTIVE,
+        is_online=True,
+        is_available=True,
+        is_approved=True,
+    )
+    ride = Ride(
+        rider_id=rider.id,
+        driver_id=first_driver.id,
+        region_id=REGION_ID,
+        status=RideStatus.DRIVER_ASSIGNED,
+        ride_type=RideType.ON_DEMAND,
+        pickup_address="A",
+        pickup_latitude=1,
+        pickup_longitude=1,
+        dropoff_address="B",
+        dropoff_latitude=2,
+        dropoff_longitude=2,
+        requested_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+        assigned_at=datetime.now(timezone.utc) - timedelta(minutes=2),
+    )
+    db_session.add_all([first_driver, second_driver, ride])
+    await db_session.flush()
+    accepted_offer = DriverOffer(
+        ride_id=ride.id,
+        driver_id=first_driver.id,
+        offer_status=OfferStatus.ACCEPTED,
+        offered_at=datetime.now(timezone.utc) - timedelta(minutes=3),
+        responded_at=datetime.now(timezone.utc) - timedelta(minutes=2),
+        expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        created_at=datetime.now(timezone.utc) - timedelta(minutes=3),
+    )
+    db_session.add(accepted_offer)
+    await db_session.commit()
+
+    response = await client.post(
+        f"/api/v1/rides/{ride.id}/cancel",
+        headers={"Authorization": driver_auth["Authorization"]},
+        json={"cancel_reason": "Car issue"},
+    )
+    assert response.status_code == 200
+    assert response.json()["data"]["status"] == "MATCHING"
+
+    refreshed_ride = (
+        await db_session.execute(
+            text("SELECT status, driver_id, dispatch_retry_count FROM marketplace_schema.rides WHERE id = :ride_id"),
+            {"ride_id": ride.id},
+        )
+    ).mappings().one()
+    pending_offer_driver_id = (
+        await db_session.execute(
+            text(
+                "SELECT driver_id FROM marketplace_schema.driver_offers "
+                "WHERE ride_id = :ride_id AND offer_status = 'PENDING' "
+                "ORDER BY offered_at DESC LIMIT 1"
+            ),
+            {"ride_id": ride.id},
+        )
+    ).scalar_one()
+    assert refreshed_ride["status"] == "MATCHING"
+    assert refreshed_ride["driver_id"] is None
+    assert refreshed_ride["dispatch_retry_count"] == 1
+    assert pending_offer_driver_id == second_driver.id
+
+
 async def test_stalled_assigned_ride_is_redispatched_to_another_driver(db_session, rider_auth, driver_auth, marketplace_objects):
     ride_service = marketplace_objects["ride_service"]
     driver_service = marketplace_objects["driver_service"]
