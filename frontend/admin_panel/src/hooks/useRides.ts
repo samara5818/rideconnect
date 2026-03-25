@@ -18,6 +18,7 @@ export function useActiveRides(filters: RideFilters = {}) {
   return useQuery({
     queryKey: ['rides', 'active', filters],
     queryFn: () => apiRequest<{ data: ActiveRide[] }>(`/admin/rides/active${qs ? '?' + qs : ''}`).then(r => r.data ?? []),
-    refetchInterval: 15_000,
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
   });
 }

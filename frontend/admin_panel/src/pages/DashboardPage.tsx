@@ -27,6 +27,22 @@ export function DashboardPage() {
   const { data: driversResponse, isLoading: driversLoading } = useDriversList({ page_size: 100 });
   const [showOnlineDrivers, setShowOnlineDrivers] = useState(false);
 
+  const activeRideCount = useMemo(
+    () =>
+      (rides ?? []).filter(
+        (ride) =>
+          ride.status === 'DRIVER_ASSIGNED' ||
+          ride.status === 'DRIVER_EN_ROUTE' ||
+          ride.status === 'DRIVER_ARRIVED' ||
+          ride.status === 'RIDE_STARTED'
+      ).length,
+    [rides]
+  );
+  const matchingRideCount = useMemo(
+    () => (rides ?? []).filter((ride) => ride.status === 'MATCHING' || ride.status === 'NO_DRIVERS_FOUND').length,
+    [rides]
+  );
+
   const onlineDrivers = useMemo(
     () => (driversResponse?.items ?? []).filter((driver) => driver.is_online),
     [driversResponse]
@@ -114,6 +130,8 @@ export function DashboardPage() {
   ];
 
   const statsValue = (key: string) => {
+    if (key === 'active_rides') return rides ? activeRideCount : (summary?.active_rides ?? 0);
+    if (key === 'matching_rides') return matchingRideCount;
     if (!summary) return 0;
     return (summary as Record<string, unknown>)[key] as number ?? 0;
   };
