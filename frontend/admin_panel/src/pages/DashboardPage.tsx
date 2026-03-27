@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { useDashboardSummary } from '../hooks/useDashboard';
 import { useActiveRides } from '../hooks/useRides';
@@ -21,6 +22,7 @@ const STAT_CARDS = [
 ];
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   useDashboardPresenceStream(true);
   const { data: summary, isLoading: summaryLoading } = useDashboardSummary();
   const { data: rides, isLoading: ridesLoading } = useActiveRides();
@@ -136,6 +138,8 @@ export function DashboardPage() {
     return (summary as Record<string, unknown>)[key] as number ?? 0;
   };
 
+  const isInteractiveCard = (key: string) => key === 'online_drivers' || key === 'pending_onboarding_reviews';
+
   return (
     <div className={styles.root}>
       <h1 className={styles.title}>Dashboard</h1>
@@ -152,15 +156,20 @@ export function DashboardPage() {
               <button
                 key={card.key}
                 type="button"
-                className={`${styles.card} ${card.key === 'online_drivers' ? styles.cardButton : ''} ${
+                className={`${styles.card} ${isInteractiveCard(card.key) ? styles.cardButton : ''} ${
                   card.key === 'online_drivers' && showOnlineDrivers ? styles.cardActive : ''
                 }`}
                 onClick={() => {
                   if (card.key === 'online_drivers') {
                     setShowOnlineDrivers((current) => !current);
+                    return;
+                  }
+
+                  if (card.key === 'pending_onboarding_reviews') {
+                    navigate('/kyc?status=SUBMITTED');
                   }
                 }}
-                disabled={card.key !== 'online_drivers'}
+                disabled={!isInteractiveCard(card.key)}
               >
                 <div className={styles.cardLeft}>
                   <div className={styles.cardNum}>{statsValue(card.key)}</div>

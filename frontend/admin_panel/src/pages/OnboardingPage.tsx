@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { getRegions, type RegionRecord } from '../api/admin';
 import { createDriver, getOnboardingQueue, type CreateDriverPayload } from '../api/onboarding';
@@ -25,6 +25,11 @@ const emptyDriverForm: CreateDriverPayload = {
 
 export function OnboardingPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const initialStatusFilter = searchParams.get('status') ?? '';
+  const initialRegionFilter = searchParams.get('region') ?? '';
+  const initialSearch = searchParams.get('search') ?? '';
 
   const [items, setItems] = useState<OnboardingQueueItem[]>([]);
   const [regions, setRegions] = useState<RegionRecord[]>([]);
@@ -35,13 +40,36 @@ export function OnboardingPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [driverForm, setDriverForm] = useState<CreateDriverPayload>(emptyDriverForm);
 
-  const [statusFilter, setStatusFilter] = useState('');
-  const [regionFilter, setRegionFilter] = useState('');
-  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState(initialStatusFilter);
+  const [regionFilter, setRegionFilter] = useState(initialRegionFilter);
+  const [search, setSearch] = useState(initialSearch);
 
   useEffect(() => {
     getRegions().then(setRegions).catch(() => setRegions([]));
   }, []);
+
+  useEffect(() => {
+    const nextStatus = searchParams.get('status') ?? '';
+    const nextRegion = searchParams.get('region') ?? '';
+    const nextSearch = searchParams.get('search') ?? '';
+
+    setStatusFilter((current) => (current === nextStatus ? current : nextStatus));
+    setRegionFilter((current) => (current === nextRegion ? current : nextRegion));
+    setSearch((current) => (current === nextSearch ? current : nextSearch));
+  }, [searchParams]);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams();
+    if (statusFilter) nextParams.set('status', statusFilter);
+    if (regionFilter) nextParams.set('region', regionFilter);
+    if (search) nextParams.set('search', search);
+
+    const currentParams = searchParams.toString();
+    const updatedParams = nextParams.toString();
+    if (currentParams !== updatedParams) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [regionFilter, search, searchParams, setSearchParams, statusFilter]);
 
   useEffect(() => {
     let cancelled = false;
