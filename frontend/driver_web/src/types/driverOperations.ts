@@ -32,6 +32,9 @@ export interface DriverProfile {
   is_approved: boolean;
   kyc_status: string;
   vehicle: DriverVehicle | null;
+  reassigned_ride_id?: string | null;
+  reassignment_notice?: string | null;
+  reassignment_at?: string | null;
 }
 
 export interface DriverStats {

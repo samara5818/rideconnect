@@ -331,6 +331,60 @@ class DispatchService:
             "dispatch_retry_count": ride.dispatch_retry_count,
         }
 
+    async def auto_redispatch_stalled_prepickup_rides(self, db: AsyncSession) -> None:
+        now = datetime.now(timezone.utc)
+        redis = get_redis_client()
+        rides = (
+            await db.execute(
+                select(Ride).where(Ride.status.in_([RideStatus.DRIVER_ASSIGNED, RideStatus.DRIVER_EN_ROUTE]))
+            )
+        ).scalars().all()
+
+        for ride in rides:
+            checkpoint = ride.driver_en_route_at or ride.assigned_at or ride.requested_at
+            if checkpoint is None:
+                continue
+            if now - checkpoint < timedelta(minutes=settings.driver_pickup_timeout_minutes):
+                continue
+
+            driver = await db.get(Driver, ride.driver_id) if ride.driver_id else None
+            if driver:
+                driver.is_available = bool(driver.is_online and driver.is_approved and driver.status == DriverStatus.ACTIVE)
+                db.add(driver)
+
+            ride.status = RideStatus.MATCHING
+            ride.driver_id = None
+            ride.vehicle_id = None
+            ride.assigned_at = None
+            ride.driver_en_route_at = None
+            ride.driver_arrived_at = None
+            ride.dispatch_retry_count += 1
+            db.add(ride)
+            db.add(
+                RideEvent(
+                    ride_id=ride.id,
+                    event_type="AUTO_REDISPATCH_REQUESTED",
+                    event_payload={
+                        "reason": "pickup_timeout",
+                        "previous_driver_id": driver.id if driver else None,
+                    },
+                )
+            )
+            await db.commit()
+            await publish_event(
+                RIDE_EVENTS_STREAM,
+                "ride_redispatching",
+                {
+                    "ride_id": ride.id,
+                    "rider_id": ride.rider_id,
+                    "previous_driver_id": driver.id if driver else None,
+                    "reason": "pickup_timeout",
+                    "dispatch_retry_count": ride.dispatch_retry_count,
+                },
+            )
+            await redis.delete(f"dispatch:candidates:{ride.id}")
+            await self.find_candidates(db, ride.id)
+
     async def expire_elapsed_offers(self, db: AsyncSession) -> None:
         expired = (
             await db.execute(

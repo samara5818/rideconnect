@@ -182,6 +182,13 @@ export default function DriverDashboardPage() {
                     title="Still waiting for more"
                     subtitle="More requests may come in"
                   />
+                ) : profile.reassignment_notice ? (
+                  <DriverStatusPanel
+                    variant="offline"
+                    title="Ride reassigned"
+                    subtitle={profile.reassignment_notice}
+                    extraText={profile.reassigned_ride_id ? `Ride ${profile.reassigned_ride_id.slice(-8)} is no longer assigned to you.` : undefined}
+                  />
                 ) : (
                   <DriverStatusPanel
                     variant="offline"

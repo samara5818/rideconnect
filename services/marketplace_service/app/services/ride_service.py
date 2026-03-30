@@ -50,9 +50,9 @@ class RideService:
         RideStatus.REQUESTED: {RideStatus.MATCHING, RideStatus.CANCELLED},
         RideStatus.MATCHING: {RideStatus.DRIVER_ASSIGNED, RideStatus.NO_DRIVERS_FOUND, RideStatus.CANCELLED},
         RideStatus.NO_DRIVERS_FOUND: {RideStatus.MATCHING, RideStatus.CANCELLED},
-        RideStatus.DRIVER_ASSIGNED: {RideStatus.DRIVER_EN_ROUTE, RideStatus.CANCELLED},
-        RideStatus.DRIVER_EN_ROUTE: {RideStatus.DRIVER_ARRIVED, RideStatus.CANCELLED},
-        RideStatus.DRIVER_ARRIVED: {RideStatus.RIDE_STARTED, RideStatus.CANCELLED},
+        RideStatus.DRIVER_ASSIGNED: {RideStatus.MATCHING, RideStatus.DRIVER_EN_ROUTE, RideStatus.CANCELLED},
+        RideStatus.DRIVER_EN_ROUTE: {RideStatus.MATCHING, RideStatus.DRIVER_ARRIVED, RideStatus.CANCELLED},
+        RideStatus.DRIVER_ARRIVED: {RideStatus.MATCHING, RideStatus.RIDE_STARTED, RideStatus.CANCELLED},
         RideStatus.RIDE_STARTED: {RideStatus.RIDE_COMPLETED, RideStatus.CANCELLED},
     }
 
@@ -149,6 +149,9 @@ class RideService:
             ride.driver_id = None
             ride.vehicle_id = None
             ride.assigned_at = None
+            ride.driver_en_route_at = None
+            ride.driver_arrived_at = None
+            ride.started_at = None
         elif new_status == RideStatus.DRIVER_EN_ROUTE:
             ride.driver_en_route_at = now
         elif new_status == RideStatus.DRIVER_ARRIVED:
@@ -260,6 +263,36 @@ class RideService:
         await self._enforce_access(db, ride, actor_user_id, role)
         if ride.status in {RideStatus.RIDE_COMPLETED, RideStatus.CANCELLED}:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Invalid ride status transition")
+        if role == UserRole.DRIVER and ride.status in {RideStatus.DRIVER_ASSIGNED, RideStatus.DRIVER_EN_ROUTE, RideStatus.DRIVER_ARRIVED}:
+            previous_driver_id = ride.driver_id
+            driver = await db.scalar(select(Driver).where(Driver.user_id == _uuid(actor_user_id)))
+            if driver:
+                driver.is_available = True
+                driver.is_online = True
+                db.add(driver)
+            await self.transition(db, ride, RideStatus.MATCHING, actor_id=actor_user_id, publish=False)
+            ride.dispatch_retry_count += 1
+            db.add(ride)
+            await self.log_event(
+                db,
+                ride.id,
+                "DRIVER_CANCELLED_REASSIGN",
+                {"cancel_reason": payload.cancel_reason, "driver_id": previous_driver_id},
+            )
+            await db.commit()
+            await publish_event(
+                RIDE_EVENTS_STREAM,
+                "ride_redispatching",
+                {
+                    "ride_id": ride.id,
+                    "rider_id": ride.rider_id,
+                    "previous_driver_id": previous_driver_id,
+                    "reason": "driver_cancelled",
+                    "dispatch_retry_count": ride.dispatch_retry_count,
+                },
+            )
+            await dispatch_service.find_candidates(db, ride.id)
+            return RideCancelledResponse(ride_id=ride.id, status=ride.status.value, cancelled_at=None)
         ride.cancel_reason = payload.cancel_reason
         ride.cancelled_by = CancelledBy(role.value)
         await self.transition(db, ride, RideStatus.CANCELLED, actor_id=actor_user_id, publish=False)

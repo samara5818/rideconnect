@@ -94,6 +94,7 @@ export interface RideResponse {
   can_tip: boolean;
   rider_rating: number | null;
   rider_comment: string | null;
+  dispatch_retry_count?: number | null;
   fare_breakdown: RideFareBreakdown | null;
   final_fare_amount: number | null;
   estimated_fare: number;
@@ -106,4 +107,5 @@ export interface RideStatusPoll {
   status: RideStatus;
   driver: RideDriver | null;
   eta_minutes: number | null;
+  dispatch_retry_count?: number | null;
 }

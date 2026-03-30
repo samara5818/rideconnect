@@ -99,6 +99,9 @@ function mapProfile(payload: unknown): DriverProfile {
     is_approved: source.is_approved === true || source.isApproved === true,
     kyc_status: toString(source.kyc_status ?? source.kycStatus, "draft"),
     vehicle: mapVehicle(source.vehicle),
+    reassigned_ride_id: toString(source.reassigned_ride_id ?? source.reassignedRideId) || null,
+    reassignment_notice: toString(source.reassignment_notice ?? source.reassignmentNotice) || null,
+    reassignment_at: toString(source.reassignment_at ?? source.reassignmentAt) || null,
   };
 }
 
